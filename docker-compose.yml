@@ -1,0 +1,9 @@
+services:
+  secondbrainbackend:
+    build:
+      context: ./
+      dockerfile: docker/Dockerfile.be
+    environment:
+      .env
+    ports:
+      - "3000:3000"

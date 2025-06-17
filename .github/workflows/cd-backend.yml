@@ -1,0 +1,48 @@
+name: "Deploy second-brain-backend to auzre VM"
+on:
+    push:
+        branches: [ main ]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+            
+            - name: DockerLogin
+              uses: docker/login-action@v3
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_PASSWORD }}
+            
+           
+            - name: Build and push
+              uses: docker/build-push-action@v6
+              with:
+                context: .
+                file: ./docker/Dockerfile.be
+                push: true
+                tags: lomashchoudhary/second-brain:${{ github.sha }}
+
+            - name : Deploy it to a VM and run using docker componse
+              run: |
+                echo "${{ secrets.PRIVATE_KEY }}" &> ~/ssh_key
+                cd ~/.ssh/
+                touch ~/.ssh/know_hosts
+                echo "${{ secrets.KNOWN_HOSTS }}" &> ~/.ssh/know_hosts
+                chmod 700  ~/ssh_key
+                ssh -o StrictHostKeyChecking=no -i ~/ssh_key rootUserAzure@20.244.2.86 << EOF
+                docker pull lomashchoudhary/second-brain:${{ github.sha }}
+                docker stop second-brain-backend || true
+                docker rm second-brain-backend || true
+                docker run -d \
+                -e CLOUD_NAME_KEY=dyv2dd9e2 \
+                -e API_KEY=626687661233343 \
+                -e API_SECRET=RZZ-k_gXTbG1GfUE17VxIVvbeoc \
+                -e MONGO_URL=mongodb+srv://lomashchoudhary2022:Y6AqPGTjMLUwMKvM@second-brain-prod-datab.zmjii5u.mongodb.net/Second-Brain-DB \
+                -e SERVER_PORT=3000 \
+                -e JWT_USER_SECRET=Q0cMQ6rE9!ZLnmb3b7 \
+                -p 3000:3000  \
+                lomashchoudhary/second-brain:${{ github.sha }}
+                EOF
