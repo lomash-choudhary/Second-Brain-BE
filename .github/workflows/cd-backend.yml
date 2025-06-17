@@ -28,6 +28,7 @@ jobs:
             - name : Deploy it to a VM and run using docker componse
               run: |
                 echo "${{ secrets.PRIVATE_KEY }}" &> ~/ssh_key
+                mkdir -p ~/.ssh/
                 cd ~/.ssh/
                 touch ~/.ssh/know_hosts
                 echo "${{ secrets.KNOWN_HOSTS }}" &> ~/.ssh/know_hosts
