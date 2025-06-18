@@ -45,6 +45,6 @@ jobs:
                 -e MONGO_URL=${{secrets.MONGO_URL}} \
                 -e SERVER_PORT=${{secrets.SERVER_PORT}} \
                 -e JWT_USER_SECRET=${{secrets.JWT_USER_SECRET}} \
-                -p 3000:3000  \
+                -p 3000:3000 \
                 lomashchoudhary/second-brain:${{ github.sha }}
                 EOF
