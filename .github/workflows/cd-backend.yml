@@ -25,26 +25,26 @@ jobs:
                 push: true
                 tags: lomashchoudhary/second-brain:${{ github.sha }}
 
-            - name : Deploy it to a VM and run using docker componse
+            - name : Deploy it to a VM and run using docker hub
               run: |
                 echo "${{ secrets.PRIVATE_KEY }}" &> ~/ssh_key
-                mkdir -p ~/.ssh/
-                cd ~/.ssh/
+                mkdir -p ~/.ssh
+                cd ~/.ssh
                 touch ~/.ssh/know_hosts
                 echo "${{ secrets.KNOWN_HOSTS }}" &> ~/.ssh/know_hosts
                 chmod 700  ~/ssh_key
-                ssh -o StrictHostKeyChecking=no -i ~/ssh_key rootUserAzure@20.244.2.86 << EOF
+                ssh -o StrictHostKeyChecking=no -i ~/ssh_key rootUserAzure@${{secrets.VM_IP}} << EOF
                 sudo docker --version
                 sudo docker pull lomashchoudhary/second-brain:${{ github.sha }}
                 sudo docker stop second-brain-backend || true
                 sudo docker rm second-brain-backend || true
                 sudo docker run -d --name second-brain-backend \
-                -e CLOUD_NAME_KEY=dyv2dd9e2 \
-                -e API_KEY=626687661233343 \
-                -e API_SECRET=RZZ-k_gXTbG1GfUE17VxIVvbeoc \
-                -e MONGO_URL=mongodb+srv://lomashchoudhary2022:Y6AqPGTjMLUwMKvM@second-brain-prod-datab.zmjii5u.mongodb.net/Second-Brain-DB \
-                -e SERVER_PORT=3000 \
-                -e JWT_USER_SECRET=Q0cMQ6rE9!ZLnmb3b7 \
+                -e CLOUD_NAME_KEY=${{secrets.CLOUD_NAME_KEY}} \
+                -e API_KEY=${{secrets.API_KEY}}\
+                -e API_SECRET=${{secrets.API_SECRET}}\
+                -e MONGO_URL=${{secrets.MONGO_URL}} \
+                -e SERVER_PORT=${{secrets.SERVER_PORT}} \
+                -e JWT_USER_SECRET=${{secrets.JWT_USER_SECRET}} \
                 -p 3000:3000  \
                 lomashchoudhary/second-brain:${{ github.sha }}
                 EOF
