@@ -38,7 +38,7 @@ jobs:
                 sudo docker pull lomashchoudhary/second-brain:${{ github.sha }}
                 sudo docker stop second-brain-backend || true
                 sudo docker rm second-brain-backend || true
-                sudo docker run -d \
+                sudo docker run -d --name second-brain-backend \
                 -e CLOUD_NAME_KEY=dyv2dd9e2 \
                 -e API_KEY=626687661233343 \
                 -e API_SECRET=RZZ-k_gXTbG1GfUE17VxIVvbeoc \
