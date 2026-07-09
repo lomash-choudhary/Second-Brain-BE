@@ -237,39 +237,71 @@ app.post(
       }
       const { share } = req.body;
       if (share === true) {
-        const existingHash = await LinkModel.findOne({
+        let linkDoc = await LinkModel.findOne({
           userId: req.userId,
         });
 
-        if (existingHash) {
-          res.status(200).json({
-            hash: existingHash.hash,
+        // Re-use the existing share link if the user already has one,
+        // otherwise generate a fresh hash for them.
+        if (!linkDoc) {
+          const hash = hashGenerator(20);
+          linkDoc = await LinkModel.create({
+            hash: hash,
+            userId: req.userId,
           });
-          return;
         }
 
-        const hash = hashGenerator(20);
-        const result = await LinkModel.create({
-          hash: hash,
-          userId: req.userId,
-        });
-
         userDetails.isBrainShared = true;
-
         await userDetails?.save({ validateBeforeSave: false });
+
+        // Always respond with the same shape so the client can rely on `link`.
         res.status(200).json({
-          message: "Hash generated successfully",
-          link: result.hash,
+          message: "Brain shared successfully",
+          link: linkDoc.hash,
+          hash: linkDoc.hash,
         });
         return;
       } else if (share === false) {
         await LinkModel.deleteOne({
           userId: req.userId,
         });
-        res.status(200).send("hash Deleted successfully");
+
+        // Stopping sharing must also disable public editing and reset the flag.
+        userDetails.isBrainShared = false;
+        userDetails.publicEditAllowed = false;
+        await userDetails?.save({ validateBeforeSave: false });
+
+        res.status(200).json({ message: "Brain sharing stopped successfully" });
+        return;
+      } else {
+        res.status(400).send("Invalid value for `share`");
       }
     } catch (err) {
       res.status(400).send(`Error occured while generating the hash ${err}`);
+    }
+  }
+);
+
+//brain sharing / editing status for the logged-in owner (must be defined before the
+//public "/api/v1/brain/:shareLink" route so "status" isn't treated as a share hash)
+app.get(
+  "/api/v1/brain/status",
+  userMiddleWareForAuthAndPublic,
+  async (req: Request, res: Response) => {
+    try {
+      const user = await UserModel.findOne({ _id: req.authenticatedUserId });
+      if (!user) {
+        res.status(400).send("User does not exist");
+        return;
+      }
+      const link = await LinkModel.findOne({ userId: req.authenticatedUserId });
+      res.status(200).json({
+        isBrainShared: !!link,
+        publicEditAllowed: !!user.publicEditAllowed,
+        hash: link ? link.hash : "",
+      });
+    } catch (err) {
+      res.status(400).send(`Error occured while fetching the brain status ${err}`);
     }
   }
 );
@@ -285,11 +317,14 @@ app.get("/api/v1/brain/:shareLink", async (req: Request, res: Response) => {
       res.status(404).send("This Link does not exists");
       return;
     }
+    const owner = await UserModel.findById(link.userId);
     const content = await ContentModel.find({
       userId: link.userId,
     }).populate("userId", "username");
     res.status(200).json({
       content,
+      publicEditAllowed: owner ? !!owner.publicEditAllowed : false,
+      sharedBy: owner ? owner.username : "",
     });
   } catch (err) {
     res.status(400).send(`Error occured while loading the page ${err}`);
@@ -465,21 +500,20 @@ app.delete(
   }
 );
 
-// get the toggle button value
+// get the current public-edit (toggle) value for the logged-in owner
 app.get("/api/v1/toggleValue", userMiddleWareForAuthAndPublic, async(req, res) => {
   try {
-    const toggleValue = await UserModel.findOne(
+    const user = await UserModel.findOne(
       {
         _id: req.authenticatedUserId,
         isBrainShared: true
       }
     )
-    toggleValue?.isBrainShared
-    if(!toggleValue){
+    if(!user){
       throw new Error("Brain is not shared")
     }
 
-    res.status(200).send(toggleValue.isBrainShared);
+    res.status(200).json(!!user.publicEditAllowed);
   } catch (error) {
     res.status(400).send(`Error occured while fetching the toggle button data ${error}`)
   }
@@ -489,25 +523,25 @@ app.get("/api/v1/toggleValue", userMiddleWareForAuthAndPublic, async(req, res) =
 app.patch("/api/v1/toggleEditButton", userMiddleWareForAuthAndPublic, async(req, res) => {
   try {
     const { toggleValue }:{toggleValue:boolean} = req.body
-    console.log(toggleValue);
-    const isBrainShared = await UserModel.findOne(
+    const user = await UserModel.findOne(
       {
         _id: req.authenticatedUserId,
         isBrainShared: true
       }
     )
-    console.log(isBrainShared)
 
-    if(!isBrainShared){
+    if(!user){
       throw new Error("Either the brain is not shared or the user is not authorized")
     }
 
-    const newUpdatedData = isBrainShared.publicEditAllowed = toggleValue
-    console.log("new updated data", newUpdatedData);
+    user.publicEditAllowed = toggleValue
 
-    await isBrainShared.save({validateBeforeSave:false})
+    await user.save({validateBeforeSave:false})
 
-    res.status(200).send(`${toggleValue ? "Brain is editable now": "Brain is viewable only now"}`)
+    res.status(200).json({
+      publicEditAllowed: toggleValue,
+      message: toggleValue ? "Brain is editable now" : "Brain is viewable only now"
+    })
 
   } catch (error) {
     res.status(400).send(`Error occured while toggling the editabled button the content ${error}`);
